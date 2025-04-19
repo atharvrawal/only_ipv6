@@ -18,8 +18,7 @@ pub struct Packet {
 }
 
 pub async fn send_file_udp(file_path: &Path, server_addr: &str) -> tokio::io::Result<()> {
-    let socket = UdpSocket::bind("[::]:0").await?; // Bind to available local IPv6 address
-    socket.connect(server_addr).await?;
+    let socket = UdpSocket::bind("[::]:0").await?;
     let packets = file_to_packets(file_path);
 
     for packet in packets {
@@ -27,17 +26,31 @@ pub async fn send_file_udp(file_path: &Path, server_addr: &str) -> tokio::io::Re
         let sno_bytes = packet.sno.to_be_bytes();
 
         loop {
-            socket.send(&encoded).await?;
+            // Use send_to instead of send
+            socket.send_to(&encoded, server_addr).await?;
+            println!("Sent packet {}", packet.sno);
+            
             let mut ack_buf = [0u8; 4];
-            if let Ok(Ok(_)) = timeout(Duration::from_millis(500), socket.recv(&mut ack_buf)).await {
-                if ack_buf == sno_bytes {
-                    break;
+            match timeout(Duration::from_millis(500), socket.recv_from(&mut ack_buf)).await {
+                Ok(Ok((len, _))) if ack_buf[..len] == sno_bytes => break,
+                _ => {
+                    println!("Timeout or wrong ACK for packet {}, retrying...", packet.sno);
+                    continue;
                 }
             }
-            println!("Retrying packet {}", packet.sno);
         }
     }
 
+    // Send EOF packet
+    let eof_packet = Packet {
+        header: 0x12345678ABCDEF00,
+        sno: u32::MAX,
+        payload_length: 0,
+        checksum: 0,
+        payload: vec![],
+    };
+    socket.send_to(&bincode::serialize(&eof_packet).unwrap(), server_addr).await?;
+    
     println!("File sent via UDP.");
     Ok(())
 }

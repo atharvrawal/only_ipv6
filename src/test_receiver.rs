@@ -22,13 +22,24 @@ pub async fn receiver_main() -> tokio::io::Result<()> {
 
     let mut buf = [0u8; 1500];
     let mut packets = HashMap::new();
-    let mut sender = None;
+    let mut file_name = None;
 
     loop {
         let (len, addr) = socket.recv_from(&mut buf).await?;
-        sender.get_or_insert(addr); // Save sender once
+        let packet: Packet = match bincode::deserialize(&buf[..len]) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Failed to deserialize packet: {}", e);
+                continue;
+            }
+        };
 
-        let packet: Packet = bincode::deserialize(&buf[..len]).unwrap();
+        // Handle EOF
+        if packet.sno == u32::MAX {
+            break;
+        }
+
+        // Verify checksum
         let calculated_checksum = calculate_checksum(&packet.payload);
         if packet.checksum != calculated_checksum {
             eprintln!("Checksum mismatch for packet {}", packet.sno);
@@ -38,21 +49,25 @@ pub async fn receiver_main() -> tokio::io::Result<()> {
         // Send ACK
         let ack = packet.sno.to_be_bytes();
         socket.send_to(&ack, addr).await?;
+        println!("Received and ACKed packet {}", packet.sno);
 
-        packets.insert(packet.sno, packet.clone());
-        println!("Received packet {}", packet.sno);
-
-        if packet.sno != 0 && packet.payload_length < 1024 {
-            break;
+        if packet.sno == 0 {
+            file_name = Some(from_utf8(&packet.payload).unwrap().to_string());
+        } else {
+            packets.insert(packet.sno, packet.payload);
         }
     }
 
-    if !packets.is_empty() {
-        let mut ordered: Vec<_> = packets.into_values().collect();
-        ordered.sort_by_key(|p| p.sno);
-        packets_to_file(ordered);
+    if let Some(name) = file_name {
+        let mut file = File::create(name)?;
+        let mut ordered: Vec<_> = packets.into_iter().collect();
+        ordered.sort_by_key(|(k, _)| *k);
+        for (_, data) in ordered {
+            file.write_all(&data)?;
+        }
         println!("File saved successfully!");
     }
+    
     Ok(())
 }
 
