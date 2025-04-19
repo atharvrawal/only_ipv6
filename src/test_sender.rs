@@ -18,7 +18,7 @@ pub struct Packet {
 }
 
 pub async fn send_file_udp(file_path: &Path, server_addr: &str) -> tokio::io::Result<()> {
-    let socket = UdpSocket::bind("[::0]:0").await?; // Bind to available local IPv6 address
+    let socket = UdpSocket::bind("[::]:0").await?; // Bind to available local IPv6 address
     socket.connect(server_addr).await?;
     let packets = file_to_packets(file_path);
 
