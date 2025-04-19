@@ -28,7 +28,7 @@ pub async fn receiver_main() -> tokio::io::Result<()> {
     loop {
         let mut len_buf = [0u8; 4];
         if reader.read_exact(&mut len_buf).await.is_err() {
-            break; // connection closed
+            break; 
         }
         let packet_len = u32::from_be_bytes(len_buf) as usize;
 

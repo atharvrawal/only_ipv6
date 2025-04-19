@@ -1,4 +1,3 @@
-use receiver::receiver_main;
 use tokio::net::TcpStream;
 use std::path::Path;
 use std::fs::File;
@@ -19,7 +18,10 @@ use futures_util::{SinkExt, StreamExt};
 use url::Url;
 use std::io::{self, Write};
 use get_ipv6::get_pip_port_json;
-use sender::sender_main;
+mod test_receiver;
+mod test_sender;
+use test_receiver::receiver_main;
+use test_sender::sender_main;
 
 pub fn print_keys_from_json_string(json_string: String){
     match serde_json::from_str::<Value>(&json_string) {

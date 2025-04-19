@@ -49,3 +49,11 @@ path = "src/encryption_module.rs"
 [[bin]]
 name = "get_ipv6"
 path = "src/get_ipv6.rs"
+
+[[bin]]
+name = "test_receiver"
+path = "src/test_receiver.rs"
+
+[[bin]]
+name = "test_sender"
+path = "src/test_sender.rs"
